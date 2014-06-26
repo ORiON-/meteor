@@ -643,6 +643,8 @@ _.extend(PhantomClient.prototype, {
     var self = this;
 
     var phantomScript = "require('webpage').create().open('" + self.url + "');";
+    var phantom = require.resolve('phantomjs');
+    console.log(phantom);
     self.process = child_process.execFile(
       '/bin/bash',
       ['-c',

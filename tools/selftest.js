@@ -714,8 +714,7 @@ _.extend(BrowserStackClient.prototype, {
   },
 
   _getBrowserStackKey: function () {
-    var tempDir = files.mkdtemp();
-    var outputDir = path.join(tempDir, "key");
+    var outputDir = path.join(files.mkdtemp(), "key");
 
     try {
       execFileSync("s3cmd", ["get",
@@ -756,11 +755,6 @@ _.extend(BrowserStackClient.prototype, {
     self.tunnelProcess.stdout.on('data', function(data) {
       if (data.toString().match(/You can now access your local server/))
         callback();
-    });
-
-    self.tunnelProcess.on('error', function (code) {
-      console.log("Error running BrowserStack. Make sure that " +
-                  "BrowserStackLocal is present in your binary.");
     });
   }
 });

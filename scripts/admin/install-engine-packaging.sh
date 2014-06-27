@@ -76,7 +76,7 @@ INSTALL_TMPDIR="$HOME/.meteor0-install-tmp"
 rm -rf "$INSTALL_TMPDIR"
 mkdir "$INSTALL_TMPDIR"
 echo "Downloading Meteor pre-release distribution"
-curl --progress-bar --fail "$TARBALL_URL" | tar -xzf - -C "$INSTALL_TMPDIR"
+curl --progress-bar --fail "$TARBALL_URL" | tar -xzf - -C "$INSTALL_TMPDIR" -o
 # bomb out if it didn't work, eg no net
 test -x "${INSTALL_TMPDIR}/.meteor0/meteor"
 mv "${INSTALL_TMPDIR}/.meteor0" "$HOME"

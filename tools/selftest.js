@@ -643,12 +643,11 @@ _.extend(PhantomClient.prototype, {
     var self = this;
 
     var phantomScript = "require('webpage').create().open('" + self.url + "');";
-    var phantom = require.resolve('phantomjs');
-    console.log(phantom);
+    var phantomPath = require('phantomjs').path;
     self.process = child_process.execFile(
       '/bin/bash',
       ['-c',
-       ("exec phantomjs --load-images=no /dev/stdin <<'END'\n" +
+       ("exec " + phantomPath + " --load-images=no /dev/stdin <<'END'\n" +
         phantomScript + "END\n")], function (err, stdout, stderr) {
           if (stderr.match(/not found/)) {
             console.log("ERROR: phantomjs not installed. Install with " +

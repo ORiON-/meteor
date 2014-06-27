@@ -723,7 +723,7 @@ _.extend(BrowserStackClient.prototype, {
         outputDir
       ]);
 
-      return fs.readFileSync(outputDir, "utf8");
+      return fs.readFileSync(outputDir, "utf8").trim();
     } catch (e) {
       return null;
     }
@@ -731,9 +731,8 @@ _.extend(BrowserStackClient.prototype, {
 
   _launchBrowserStackTunnel: function (callback) {
     var self = this;
-    var callbackInvoked = false;
-
     var args = [
+      'BrowserStackLocal',
       browserStackKey,
       [self.host, self.port, 0].join(','),
       // Disable Live Testing and Screenshots, just test with Automate.
@@ -741,10 +740,9 @@ _.extend(BrowserStackClient.prototype, {
       // Do not wait for the server to be ready to spawn the process.
       '-skipCheck'
     ];
-
     self.tunnelProcess = child_process.execFile(
       '/bin/bash',
-      ['-c', "BrowserStackLocal"].concat(args),
+      ['-c', args.join(' ')],
       function (err, stdout, stderr) {
         if (stderr.match(/not found/)) {
           console.log("ERROR: BrowserStackLocal not installed." +

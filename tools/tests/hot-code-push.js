@@ -27,7 +27,7 @@ selftest.define("css injection", function (options) {
 
     run.connectClient();
 
-    run.waitSecs(20);
+    run.waitSecs(120);
     run.match("client connected");
 
     // Initially there is no CSS file.

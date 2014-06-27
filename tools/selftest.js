@@ -650,8 +650,8 @@ _.extend(PhantomClient.prototype, {
        ("exec " + phantomPath + " --load-images=no /dev/stdin <<'END'\n" +
         phantomScript + "END\n")], function (err, stdout, stderr) {
           if (stderr.match(/not found/)) {
-            console.log("ERROR: phantomjs not installed. Install with " +
-                        "npm install -g phantomjs");
+            console.log("ERROR: phantomjs not installed. Make sure that " +
+                        "your dev bundle is up to date.");
           }
     });
   },

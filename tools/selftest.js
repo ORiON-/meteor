@@ -8,8 +8,8 @@ var release = require('./release.js');
 var catalog = require('./catalog.js');
 var archinfo = require('./archinfo.js');
 var Future = require('fibers/future');
+var util = require('util');
 var child_process = require('child_process');
-var webdriver = require('browserstack-webdriver');
 
 // Exception representing a test failure
 var TestFailure = function (reason, details) {
@@ -55,14 +55,6 @@ var expectThrows = markStack(function (f) {
   if (! threw)
     throw new TestFailure("expected-exception")
 });
-
-// http://davidshariff.com/blog/javascript-inheritance-patterns/
-var inherits = function (child, parent) {
-  var tmp = function () {};
-  tmp.prototype = parent.prototype;
-  child.prototype = new tmp;
-  child.prototype.constructor = child;
-};
 
 // Execute a command synchronously, discarding stderr.
 var execFileSync = function (binary, args) {
@@ -636,7 +628,7 @@ var PhantomClient = function (options) {
   self.process = null;
 };
 
-inherits(PhantomClient, Client);
+util.inherits(PhantomClient, Client);
 
 _.extend(PhantomClient.prototype, {
   connect: function () {
@@ -650,8 +642,8 @@ _.extend(PhantomClient.prototype, {
        ("exec " + phantomPath + " --load-images=no /dev/stdin <<'END'\n" +
         phantomScript + "END\n")], function (err, stdout, stderr) {
           if (stderr.match(/not found/)) {
-            console.log("ERROR: phantomjs not installed. Make sure that " +
-                        "your dev bundle is up to date.");
+            console.log("ERROR: phantomjs not installed. Install with " +
+                        "npm install -g phantomjs.");
           }
     });
   },
@@ -673,7 +665,7 @@ var BrowserStackClient = function (options) {
   self.driver = null;
 };
 
-inherits(BrowserStackClient, Client);
+util.inherits(BrowserStackClient, Client);
 
 _.extend(BrowserStackClient.prototype, {
   connect: function () {
@@ -697,6 +689,7 @@ _.extend(BrowserStackClient.prototype, {
       if (error)
         throw error;
 
+      var webdriver = require('browserstack-webdriver');
       self.driver = new webdriver.Builder().
         usingServer('http://hub.browserstack.com/wd/hub').
         withCapabilities(capabilities).

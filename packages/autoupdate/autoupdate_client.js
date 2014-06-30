@@ -42,7 +42,7 @@ Autoupdate.newClientAvailable = function () {
   );
 };
 
-
+var knownToSupportCssOnLoad = false;
 
 var retry = new Retry({
   // Unlike the stream reconnect use of Retry, which we want to be instant
@@ -77,30 +77,66 @@ Autoupdate._retrySubscription = function () {
     onReady: function () {
       if (Package.reload) {
         var handle = ClientVersions.find().observeChanges({
-          added: function(id, doc) {
+          added: function (id, fields) {
             var self = this;
-            if (doc.refreshable && id !== autoupdateVersionRefreshable) {
+            if (fields.refreshable && id !== autoupdateVersionRefreshable) {
               autoupdateVersionRefreshable = id;
 
-              // Remove all of the old CSS links that were added by Meteor.
-              var cssLinks = document.getElementsByClassName('__meteor-css__');
-              while (cssLinks[0]) {
-                cssLinks[0].parentNode.removeChild(cssLinks[0]);
-              }
+              // Switch out old css links for the new css links. Inspired by:
+              // https://github.com/guard/guard-livereload/blob/master/js/livereload.js#L710
+              var newCss = fields.assets.allCss;
+              var oldLinks = [];
+              _.each(document.getElementsByTagName('link'), function (link) {
+                if (link.className === '__meteor-css__') {
+                  oldLinks.push(link);
+                }
+              });
 
-              // Iterate through the list of new css files and add them to head.
-              _.each(doc.assets.allCss, function (css) {
-                var newlink = document.createElement("link");
-                newlink.setAttribute("rel", "stylesheet");
-                newlink.setAttribute("class", "__meteor-css__");
-                newlink.setAttribute("href", css.url);
+              var waitUntilCssLoads = function  (link, callback) {
+                var executeCallback = _.once(callback);
+                link.onload = function () {
+                  knownToSupportCssOnLoad = true;
+                  executeCallback();
+                };
+                if (! knownToSupportCssOnLoad) {
+                  var id = Meteor.setInterval(function () {
+                    if (link.sheet) {
+                      executeCallback();
+                      Meteor.clearInterval(id);
+                    }
+                  }, 50);
+                }
+              };
+
+              var attachStylesheetLink = function (newLink) {
+                var removeOldLinks = _.after(newCss.length, function () {
+                  _.each(oldLinks, function (oldLink) {
+                    oldLink.parentNode.removeChild(oldLink);
+                  });
+                });
+
                 document.getElementsByTagName("head").
                   item(0).
-                  insertBefore(newlink);
+                  insertBefore(newLink);
+
+                waitUntilCssLoads(newLink, function () {
+                  Meteor.setTimeout(removeOldLinks, 200);
+                });
+              };
+
+              _.each(newCss, function (css) {
+                var newLink = document.createElement("link");
+                newLink.setAttribute("rel", "stylesheet");
+                newLink.setAttribute("type", "text/css");
+                newLink.setAttribute("class", "__meteor-css__");
+                newLink.setAttribute("href", css.url);
+                attachStylesheetLink(newLink);
               });
-            } else if (! doc.refreshable && id !== autoupdateVersion) {
-              handle.stop();
-              Package.reload.Reload._reload();
+            } else if (! fields.refreshable && id !== autoupdateVersion) {
+              if (handle) {
+                handle.stop();
+                Package.reload.Reload._reload();
+              }
             }
           }
         });

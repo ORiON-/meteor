@@ -271,43 +271,49 @@ var runWebAppServer = function () {
 
   WebAppInternals.reloadClientProgram = function () {
     syncQueue.runTask(function() {
-      // read the control for the client we'll be serving up
-      clientJsonPath = path.join(__meteor_bootstrap__.serverDir,
-                                 __meteor_bootstrap__.configJson.client);
-      clientDir = path.dirname(clientJsonPath);
-      clientJson = JSON.parse(readUtf8FileSync(clientJsonPath));
-      if (clientJson.format !== "browser-program-pre1")
-        throw new Error("Unsupported format for client assets: " +
-                        JSON.stringify(clientJson.format));
+      try {
+        // read the control for the client we'll be serving up
+        clientJsonPath = path.join(__meteor_bootstrap__.serverDir,
+                                   __meteor_bootstrap__.configJson.client);
+        clientDir = path.dirname(clientJsonPath);
+        clientJson = JSON.parse(readUtf8FileSync(clientJsonPath));
+        if (clientJson.format !== "browser-program-pre1")
+          throw new Error("Unsupported format for client assets: " +
+                          JSON.stringify(clientJson.format));
 
-      staticFiles = {};
-      _.each(clientJson.manifest, function (item) {
-        if (item.url && item.where === "client") {
-          staticFiles[getItemPathname(item.url)] = {
-            path: item.path,
-            cacheable: item.cacheable,
-            // Link from source to its map
-            sourceMapUrl: item.sourceMapUrl,
-            type: item.type
-          };
-
-          if (item.sourceMap) {
-            // Serve the source map too, under the specified URL. We assume all
-            // source maps are cacheable.
-            staticFiles[getItemPathname(item.sourceMapUrl)] = {
-              path: item.sourceMap,
-              cacheable: true
+        staticFiles = {};
+        _.each(clientJson.manifest, function (item) {
+          if (item.url && item.where === "client") {
+            staticFiles[getItemPathname(item.url)] = {
+              path: item.path,
+              cacheable: item.cacheable,
+              // Link from source to its map
+              sourceMapUrl: item.sourceMapUrl,
+              type: item.type
             };
+
+            if (item.sourceMap) {
+              // Serve the source map too, under the specified URL. We assume all
+              // source maps are cacheable.
+              staticFiles[getItemPathname(item.sourceMapUrl)] = {
+                path: item.sourceMap,
+                cacheable: true
+              };
+            }
           }
-        }
-      });
-      // Exported for tests.
-      WebAppInternals.staticFiles = staticFiles;
-      WebApp.clientProgram = {
-        manifest: clientJson.manifest
-        // XXX do we need a "root: clientDir" field here? it used to be here but
-        // was unused.
-      };
+        });
+        WebApp.clientProgram = {
+          manifest: clientJson.manifest
+          // XXX do we need a "root: clientDir" field here? it used to be here but
+          // was unused.
+        };
+
+        // Exported for tests.
+        WebAppInternals.staticFiles = staticFiles;
+      } catch (e) {
+        Log.error("Error reloading the client program: " + e.message);
+        process.exit(1);
+      }
     });
   };
   WebAppInternals.reloadClientProgram();
@@ -518,22 +524,26 @@ var runWebAppServer = function () {
       return undefined;
     }
 
+    // The only thing that changes from request to request (for now) are the
+    // HTML attributes (used by, eg, appcache), so we can memoize based on that.
     var htmlAttributes = getHtmlAttributes(request);
     var attributeKey = JSON.stringify(htmlAttributes);
-    try {
-      var boilerplateData = _.extend({htmlAttributes: htmlAttributes},
-                                     boilerplateBaseData);
-      var boilerplateInstance = boilerplateTemplate.extend({
-        data: boilerplateData
-      });
-      var boilerplateHtmlJs = boilerplateInstance.render();
-      boilerplateByAttributes[attributeKey] = "<!DOCTYPE html>\n" +
-            HTML.toHTML(boilerplateHtmlJs, boilerplateInstance);
-    } catch (e) {
-      Log.error("Error running template: " + e);
-      res.writeHead(500, headers);
-      res.end();
-      return undefined;
+    if (!_.has(boilerplateByAttributes, attributeKey)) {
+      try {
+        var boilerplateData = _.extend({htmlAttributes: htmlAttributes},
+                                       boilerplateBaseData);
+        var boilerplateInstance = boilerplateTemplate.extend({
+          data: boilerplateData
+        });
+        var boilerplateHtmlJs = boilerplateInstance.render();
+        boilerplateByAttributes[attributeKey] = "<!DOCTYPE html>\n" +
+              HTML.toHTML(boilerplateHtmlJs, boilerplateInstance);
+      } catch (e) {
+        Log.error("Error running template: " + e);
+        res.writeHead(500, headers);
+        res.end();
+        return undefined;
+      }
     }
 
     res.writeHead(200, headers);

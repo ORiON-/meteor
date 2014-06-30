@@ -1671,10 +1671,10 @@ exports.bundle = function (options) {
   var serverWatchSet = new watch.WatchSet();
   var clientWatchSet = new watch.WatchSet();
   var starResult = null;
+  var targets = {};
   var messages = buildmessage.capture({
     title: "building the application"
   }, function () {
-    var targets = {};
     var controlProgram = null;
 
     var makeClientTarget = function (app) {
@@ -1733,7 +1733,7 @@ exports.bundle = function (options) {
       serverWatchSet, path.join(appDir, 'no-default-targets')) === null;
 
     if (includeDefaultTargets) {
-      if (! options.firstBuild) {
+      if (options.cachedServerTarget) {
         // Refresh the package cache in case some of the package files
         // have changed.
         packageCache.packageCache.refresh();
@@ -1748,10 +1748,9 @@ exports.bundle = function (options) {
       targets.client = client;
 
       // Server
-      if (options.firstBuild) {
-        var server = makeServerTarget(app, client);
-        targets.server = server;
-      }
+      var server = options.cachedServerTarget || makeServerTarget(app, client);
+      server.clientTarget = client;
+      targets.server = server;
     }
 
     // Pick up any additional targets in /programs
@@ -1921,7 +1920,8 @@ exports.bundle = function (options) {
     errors: success ? false : messages,
     serverWatchSet: serverWatchSet,
     clientWatchSet: clientWatchSet,
-    starManifest: starResult && starResult.starManifest
+    starManifest: starResult && starResult.starManifest,
+    serverTarget: targets.server
   };
 };
 

@@ -15,7 +15,6 @@ var catalog = require('./catalog.js');
 var packageCache = require('./package-cache.js');
 var PackageLoader = require('./package-loader.js').PackageLoader;
 var stats = require('./stats.js');
-var child_process = require('child_process');
 
 // Parse out s as if it were a bash command line.
 var bashParse = function (s) {
@@ -203,6 +202,8 @@ _.extend(AppProcess.prototype, {
   // wasn't found in the bundle.
   _spawn: function () {
     var self = this;
+
+    var child_process = require('child_process');
 
     if (! self.program) {
       // Old-style bundle
@@ -417,25 +418,29 @@ _.extend(AppRunner.prototype, {
     if (self.recordPackageUsage)
       stats.recordPackages(self.appDir);
 
-    var bundleApp = function (firstBuild) {
+    // Cache the server target because the server will not change inside
+    // a single invocation of _runOnce().
+    var cachedServerTarget = null;
+    var bundleApp = function () {
       var bundle = bundler.bundle({
         outputPath: bundlePath,
         nodeModulesMode: "symlink",
         buildOptions: self.buildOptions,
-        firstBuild: firstBuild
+        cachedServerTarget: cachedServerTarget
       });
 
-      // Were there errors?
-      if (bundle.errors) {
-        return {
-          outcome: 'bundle-fail',
-          bundleResult: bundle
-        };
-      }
+      cachedServerTarget = bundle.serverTarget;
       return bundle;
     };
 
-    var bundleResult = bundleApp(true);
+    var bundleResult = bundleApp();
+    if (bundleResult.errors) {
+      return {
+        outcome: 'bundle-fail',
+        bundleResult: bundleResult
+      };
+    }
+
     var serverWatchSet = bundleResult.serverWatchSet;
 
     // Read the settings file, if any
@@ -504,17 +509,20 @@ _.extend(AppRunner.prototype, {
     // hurry to do this, since watchSet contains a snapshot of the
     // state of the world at the time of bundling, in the form of
     // hashes and lists of matching files in each directory.
-    var serverWatcher = new watch.Watcher({
-      watchSet: serverWatchSet,
-      onChange: function () {
-        self._runFutureReturn({
-          outcome: 'changed',
-          bundleResult: bundleResult
-        });
-      }
-    });
-
+    var serverWatcher;
     var clientWatcher;
+
+    if (self.watchForChanges) {
+      serverWatcher = new watch.Watcher({
+        watchSet: serverWatchSet,
+        onChange: function () {
+          self._runFutureReturn({
+            outcome: 'changed',
+            bundleResult: bundleResult
+          });
+        }
+      });
+    }
 
     var setupClientWatcher = function () {
       clientWatcher && clientWatcher.stop();
@@ -532,8 +540,9 @@ _.extend(AppRunner.prototype, {
          }
       });
     };
-    if (self.watchForChanges)
+    if (self.watchForChanges) {
       setupClientWatcher();
+    }
 
     // Wait for either the process to exit, or (if watchForChanges) a
     // source file to change. Or, for stop() to be called.
@@ -542,14 +551,19 @@ _.extend(AppRunner.prototype, {
     while (ret.outcome === 'changed-refreshable') {
       // We stay in this loop as long as only refreshable assets have changed.
       // When ret.refreshable becomes false, we restart the server.
-      bundleResult = bundleApp(false);
+      bundleResult = bundleApp();
+      if (bundleResult.errors) {
+        return {
+          outcome: 'bundle-fail',
+          bundleResult: bundleResult
+        };
+      }
 
       // Establish a watcher on the new files.
       setupClientWatcher();
 
       // Notify the server that new client assets have been added to the build.
-      child_process.execFile('/bin/bash',
-        ['-c', ("kill -SIGUSR2 " + appProcess.proc.pid)]);
+      process.kill(appProcess.proc.pid, 'SIGUSR2');
 
       self.runFuture = new Future;
       ret = self.runFuture.wait();
